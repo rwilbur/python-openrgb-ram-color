@@ -1,0 +1,60 @@
+#!/usr/bin/env python3
+from openrgb import OpenRGBClient
+from openrgb.utils import RGBColor, DeviceType
+from time import sleep
+from py3nvml.py3nvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetTemperature, NVML_TEMPERATURE_GPU
+import psutil
+from typing import Tuple
+
+
+def initRGB():
+    # Getting this script ready to be run as a service. Waiting for the sdk to start.
+    while True:
+        try:
+            cli = OpenRGBClient()
+            break
+        except ConnectionRefusedError:
+            sleep(5)
+            print("Trying again")
+            continue
+    try:
+        rams = cli.get_devices_by_type(DeviceType.DRAM)
+        for ram in rams:
+            ram.clear()
+        for ram in rams:
+            ram.set_mode(0)
+    except IndexError:
+        rams = False
+
+    else:
+        handle = False
+    return rams, handle
+
+
+def temp_to_color(temp: int, min: int, max: int) -> Tuple[int, int]:
+    multiplier = 240/(max - min)
+    if temp < min:
+        return 0, 255
+    elif temp < max:
+        return int((temp - min) * multiplier), int((max - temp) * multiplier)
+    elif temp >= max:
+        return 255, 0
+
+
+rams, handle = initRGB()
+
+
+while True:
+    try:
+
+        temp = psutil.sensors_temperatures()['k10temp'][-1].current
+        red, blue = temp_to_color(temp, 45, 75)
+        color = RGBColor(red, 0, blue)
+        for ram in rams:
+            for led in ram.leds:
+                led.set_color(color)
+        sleep(0.1)
+    except (ConnectionResetError, BrokenPipeError, TimeoutError) as e:
+        print(str(e) + " during main loop")
+        print("Trying to reconnect...")
+        rams, handle = initRGB()
