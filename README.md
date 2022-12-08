@@ -2,3 +2,5 @@
 Set RAM color based on CPU temp
 
 Requires openRGB
+
+new thing
